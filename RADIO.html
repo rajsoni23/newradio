@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akashvani & All India Radio Player</title>
+    <!-- HLS.js for .m3u8 playback -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --border: #334155;
+            --accent: #ef4444;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            padding: 1.2rem 1rem;
+            background-color: #090d16;
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.3rem;
+            color: #f3f4f6;
+        }
+
+        .controls-top {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px 16px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            background: #1e293b;
+            color: #fff;
+            outline: none;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+        }
+
+        .channel-count {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+        }
+
+        .container {
+            padding: 20px;
+            margin-bottom: 110px;
+            flex-grow: 1;
+        }
+
+        .channel-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 14px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .channel-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .channel-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent);
+        }
+
+        .channel-card.active {
+            border: 2px solid var(--accent);
+            background-color: #334155;
+        }
+
+        .channel-card img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background-color: #0f172a;
+        }
+
+        .channel-card h3 {
+            margin: 0;
+            font-size: 0.85rem;
+            line-height: 1.25;
+            color: var(--text-main);
+        }
+
+        /* Fixed Bottom Audio Player */
+        .player-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #090d16;
+            border-top: 1px solid var(--border);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 100;
+        }
+
+        .player-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 35%;
+        }
+
+        .player-info img {
+            width: 48px;
+            height: 48px;
+            border-radius: 6px;
+            object-fit: cover;
+            background-color: #1e293b;
+        }
+
+        .player-details h4 {
+            margin: 0;
+            font-size: 0.95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .player-details p {
+            margin: 3px 0 0 0;
+            font-size: 0.75rem;
+            color: var(--text-sub);
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-play {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            background-color: var(--accent);
+            color: white;
+            font-size: 1.1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            outline: none;
+        }
+
+        .volume-container {
+            width: 25%;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        input[type=range] { accent-color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>📻 Akashvani & All India Radio (115 Live Channels)</h1>
+        <div class="controls-top">
+            <input type="text" id="searchBar" placeholder="Search station or language..." onkeyup="filterChannels()">
+            <div class="channel-count" id="channelCount">Loading...</div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="channel-grid" id="channelGrid"></div>
+    </div>
+
+    <div class="player-bar">
+        <div class="player-info">
+            <img id="currentImg" src="https://airdco.pc.cdn.bitgravity.com/images/air-live.jpg" alt="Art">
+            <div class="player-details">
+                <h4 id="currentTitle">Select a Station</h4>
+                <p id="currentStatus">Idle</p>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn-play" id="playBtn" onclick="togglePlay()">▶</button>
+        </div>
+
+        <div class="volume-container">
+            <input type="range" id="volumeControl" min="0" max="1" step="0.05" value="1" onchange="setVolume(this.value)">
+        </div>
+    </div>
+
+    <audio id="audioPlayer"></audio>
+
+    <script>
+        const defaultImg = 'https://airdco.pc.cdn.bitgravity.com/images/air-live.jpg';
+
+        // Full dataset of 115 AIR & Akashvani streams
+        const channels = {
+            // National & Primary
+            '100': { name: 'Vividh Bharati National', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_258910.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio001/hlspbaudio001_Auto.m3u8' },
+            '101': { name: 'FM Gold Delhi', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio005/hlspbaudio005_Auto.m3u8' },
+            '102': { name: 'FM Rainbow Delhi', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio006/hlspbaudio006_Auto.m3u8' },
+            '103': { name: 'AIR Live News 24x7', image: 'https://airdco.pc.cdn.bitgravity.com/images/air-live.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio002/hlspbaudio002_Auto.m3u8' },
+            '104': { name: 'Raagam Classical', image: 'https://airdco.pc.cdn.bitgravity.com/images/raagam.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio004/hlspbaudio004_Auto.m3u8' },
+            '105': { name: 'Akashvani Aaradhana', image: 'https://airdco.pc.cdn.bitgravity.com/images/Aaradhana.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio003/hlspbaudio003_Auto.m3u8' },
+            '106': { name: 'AIR World Service Hindi', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio008/hlspbaudio008_Auto.m3u8' },
+            '107': { name: 'AIR World Service English', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio009/hlspbaudio009_Auto.m3u8' },
+
+            // Uttar Pradesh & Uttarakhand
+            '271': { name: 'Akashvani Kanpur', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_345394.jpg', live_url: 'https://radio.wavespb.com/live/278ca8613f27411e/278ca8613f27411e.m3u8' },
+            '272': { name: 'FM Rainbow Kanpur', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_947670.jpg', live_url: 'https://radio.wavespb.com/live/c0df5324304ad39e/c0df5324304ad39e.m3u8' },
+            '273': { name: 'Akashvani Lucknow', image: 'https://airdco.pc.cdn.bitgravity.com/images/airlucknow.jpg', live_url: 'https://radio.wavespb.com/live/75c01e54cb46ad29/75c01e54cb46ad29.m3u8' },
+            '274': { name: 'FM Rainbow Lucknow', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_188882.jpg', live_url: 'https://radio.wavespb.com/live/81c465a355a1ea65/81c465a355a1ea65.m3u8' },
+            '275': { name: 'Akashvani Mathura', image: 'https://airdco.pc.cdn.bitgravity.com/images/airmathura.jpg', live_url: 'https://radio.wavespb.com/live/5e42265becd8a816/5e42265becd8a816.m3u8' },
+            '276': { name: 'Akashvani Najibabad', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_517789.jpg', live_url: 'https://radio.wavespb.com/live/4aaa85cab056e9c1/4aaa85cab056e9c1.m3u8' },
+            '277': { name: 'Akashvani Obra', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_265912.jpg', live_url: 'https://air.pc.cdn.bitgravity.com/air/live/pbaudio235/playlist.m3u8' },
+            '278': { name: 'Akashvani Rampur', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_850592.jpg', live_url: 'https://radio.wavespb.com/live/bc3b1ad27f1e2fda/bc3b1ad27f1e2fda.m3u8' },
+            '279': { name: 'Akashvani Varanasi', image: 'https://airdco.pc.cdn.bitgravity.com/images/airvaranasi.jpg', live_url: 'https://radio.wavespb.com/live/43290b0b741fd08f/43290b0b741fd08f.m3u8' },
+            '280': { name: 'Akashvani Almora', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_199564.jpg', live_url: 'https://radio.wavespb.com/live/38719309b3b91cdc/38719309b3b91cdc.m3u8' },
+            '281': { name: 'Akashvani Dehradun', image: 'https://airdco.pc.cdn.bitgravity.com/images/airdehradun.jpg', live_url: 'https://radio.wavespb.com/live/355939733d28e2e7/355939733d28e2e7.m3u8' },
+            '282': { name: 'Akashvani Pauri', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_125539.jpg', live_url: 'https://radio.wavespb.com/live/101ea47cdd9c59df/101ea47cdd9c59df.m3u8' },
+            '298': { name: 'Akashvani Gorakhpur', image: defaultImg, live_url: 'https://radio.wavespb.com/live/36636f3e1b1d3d1e/36636f3e1b1d3d1e.m3u8' },
+            '299': { name: 'Akashvani Prayagraj', image: defaultImg, live_url: 'https://radio.wavespb.com/live/ee31c3bf4d82b4a5/ee31c3bf4d82b4a5.m3u8' },
+            '300': { name: 'Akashvani Agra', image: defaultImg, live_url: 'https://radio.wavespb.com/live/60ed015b6b15874c/60ed015b6b15874c.m3u8' },
+
+            // West Bengal & East
+            '283': { name: 'Akashvani Bangla', image: 'https://airdco.pc.cdn.bitgravity.com/images/air-bangla.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio137/hlspbaudio137_Auto.m3u8' },
+            '284': { name: 'Kolkata Geetanjali', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_817824.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio055/hlspbaudio055_Auto.m3u8' },
+            '285': { name: 'Kolkata Sanchayita', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_480353.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio056/hlspbaudio056_Auto.m3u8' },
+            '286': { name: 'FM Gold Kolkata', image: 'https://airdco.pc.cdn.bitgravity.com/images/airkolkatafmgold.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio057/hlspbaudio057_Auto.m3u8' },
+            '287': { name: 'FM Rainbow Kolkata', image: 'https://airdco.pc.cdn.bitgravity.com/images/airkolkatafmrainbow.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio058/hlspbaudio058_Auto.m3u8' },
+            '288': { name: 'Vividh Bharati Kolkata', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_258910.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio275/hlspbaudio275_Auto.m3u8' },
+            '289': { name: 'Akashvani Kurseong', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_319202.jpg', live_url: 'https://radio.wavespb.com/live/1f781b48497e67d3/1f781b48497e67d3.m3u8' },
+            '290': { name: 'Akashvani Murshidabad', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_565906.jpg', live_url: 'https://radio.wavespb.com/live/47a45f818dd9203b/47a45f818dd9203b.m3u8' },
+            '291': { name: 'Akashvani Shantiniketan', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_121090.jpg', live_url: 'https://radio.wavespb.com/live/66249dfecaf80241/66249dfecaf80241.m3u8' },
+            '292': { name: 'Akashvani Maitree', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_895638.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio245/hlspbaudio245_Auto.m3u8' },
+            '293': { name: 'Akashvani Siliguri', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_229808.jpg', live_url: 'https://radio.wavespb.com/live/165856ba98ca031a/165856ba98ca031a.m3u8' },
+
+            // Maharashtra & Goa
+            '6':   { name: 'Mumbai Asmita', image: 'https://airdco.pc.cdn.bitgravity.com/images/airmumbaiasmita.jpg', live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio010/hlspbaudio010_Auto.m3u8' },
+            '301': { name: 'FM Gold Mumbai', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio011/hlspbaudio011_Auto.m3u8' },
+            '302': { name: 'FM Rainbow Mumbai', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio012/hlspbaudio012_Auto.m3u8' },
+            '303': { name: 'Vividh Bharati Mumbai', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio013/hlspbaudio013_Auto.m3u8' },
+            '304': { name: 'Akashvani Pune', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio014/hlspbaudio014_Auto.m3u8' },
+            '305': { name: 'Akashvani Nagpur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio015/hlspbaudio015_Auto.m3u8' },
+            '306': { name: 'Akashvani Panaji Goa', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio016/hlspbaudio016_Auto.m3u8' },
+            '307': { name: 'Akashvani Chhatrapati Sambhajinagar', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio017/hlspbaudio017_Auto.m3u8' },
+
+            // Southern States
+            '297': { name: 'FM Rainbow Chennai', image: 'https://airdco.pc.cdn.bitgravity.com/images/RADIO_327320.jpg', live_url: 'https://radio.wavespb.com/live/b20ff2fc0bb34b3d/b20ff2fc0bb34b3d.m3u8' },
+            '308': { name: 'Chennai Primary', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio018/hlspbaudio018_Auto.m3u8' },
+            '309': { name: 'FM Gold Chennai', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio019/hlspbaudio019_Auto.m3u8' },
+            '310': { name: 'Bengaluru Primary', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio020/hlspbaudio020_Auto.m3u8' },
+            '311': { name: 'FM Rainbow Bengaluru', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio021/hlspbaudio021_Auto.m3u8' },
+            '312': { name: 'Akashvani Hyderabad', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio022/hlspbaudio022_Auto.m3u8' },
+            '313': { name: 'FM Rainbow Hyderabad', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio023/hlspbaudio023_Auto.m3u8' },
+            '314': { name: 'Thiruvananthapuram', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio024/hlspbaudio024_Auto.m3u8' },
+            '315': { name: 'Akashvani Kozhikode', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio025/hlspbaudio025_Auto.m3u8' },
+            '316': { name: 'Kochi Ananthapuri', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio026/hlspbaudio026_Auto.m3u8' },
+            '317': { name: 'Akashvani Vijayawada', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio027/hlspbaudio027_Auto.m3u8' },
+            '318': { name: 'Akashvani Visakhapatnam', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio028/hlspbaudio028_Auto.m3u8' },
+            '319': { name: 'Akashvani Mysuru', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio029/hlspbaudio029_Auto.m3u8' },
+            '320': { name: 'Akashvani Madurai', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio030/hlspbaudio030_Auto.m3u8' },
+            '321': { name: 'Akashvani Tiruchirappalli', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio031/hlspbaudio031_Auto.m3u8' },
+            '322': { name: 'Akashvani Coimbatore', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio032/hlspbaudio032_Auto.m3u8' },
+
+            // Northern & Western States
+            '8':   { name: 'Akashvani Punjabi', image: 'https://airdco.pc.cdn.bitgravity.com/images/air-punjabi.jpg', live_url: 'https://radio.wavespb.com/live/5adc4acbbdd1f6cf/5adc4acbbdd1f6cf.m3u8' },
+            '294': { name: 'Akashvani Gujarati', image: 'https://airdco.pc.cdn.bitgravity.com/images/air-gujarati.jpg', live_url: 'https://radio.wavespb.com/live/8a1bb2ca9d2a6741/8a1bb2ca9d2a6741.m3u8' },
+            '323': { name: 'Akashvani Jalandhar', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio033/hlspbaudio033_Auto.m3u8' },
+            '324': { name: 'FM Rainbow Jalandhar', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio034/hlspbaudio034_Auto.m3u8' },
+            '325': { name: 'Jaipur Primary', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio035/hlspbaudio035_Auto.m3u8' },
+            '326': { name: 'FM Pink City Jaipur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio036/hlspbaudio036_Auto.m3u8' },
+            '327': { name: 'Akashvani Jodhpur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio037/hlspbaudio037_Auto.m3u8' },
+            '328': { name: 'Akashvani Ahmedabad', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio038/hlspbaudio038_Auto.m3u8' },
+            '329': { name: 'Akashvani Vadodara', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio039/hlspbaudio039_Auto.m3u8' },
+            '330': { name: 'Akashvani Rajkot', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio040/hlspbaudio040_Auto.m3u8' },
+            '331': { name: 'Akashvani Shimla', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio041/hlspbaudio041_Auto.m3u8' },
+            '332': { name: 'Akashvani Rohtak', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio042/hlspbaudio042_Auto.m3u8' },
+            '333': { name: 'Akashvani Jammu', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio043/hlspbaudio043_Auto.m3u8' },
+            '334': { name: 'Akashvani Srinagar', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio044/hlspbaudio044_Auto.m3u8' },
+            '335': { name: 'Akashvani Leh', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio045/hlspbaudio045_Auto.m3u8' },
+
+            // North East & Central
+            '295': { name: 'Akashvani Kokrajhar', image: 'https://airdco.pc.cdn.bitgravity.com/images/KOKRAJHAR.jpeg', live_url: 'https://radio.wavespb.com/live/f6fa349221f25803/f6fa349221f25803.m3u8' },
+            '336': { name: 'Guwahati Primary', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio046/hlspbaudio046_Auto.m3u8' },
+            '337': { name: 'FM Trishna Guwahati', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio047/hlspbaudio047_Auto.m3u8' },
+            '338': { name: 'Akashvani Shillong', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio048/hlspbaudio048_Auto.m3u8' },
+            '339': { name: 'Akashvani Imphal', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio049/hlspbaudio049_Auto.m3u8' },
+            '340': { name: 'Akashvani Aizawl', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio050/hlspbaudio050_Auto.m3u8' },
+            '341': { name: 'Akashvani Agartala', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio051/hlspbaudio051_Auto.m3u8' },
+            '342': { name: 'Akashvani Kohima', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio052/hlspbaudio052_Auto.m3u8' },
+            '343': { name: 'Akashvani Gangtok', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio053/hlspbaudio053_Auto.m3u8' },
+            '344': { name: 'Akashvani Itanagar', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio054/hlspbaudio054_Auto.m3u8' },
+            '345': { name: 'Akashvani Bhopal', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio059/hlspbaudio059_Auto.m3u8' },
+            '346': { name: 'Akashvani Indore', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio060/hlspbaudio060_Auto.m3u8' },
+            '347': { name: 'Akashvani Raipur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio061/hlspbaudio061_Auto.m3u8' },
+            '348': { name: 'Akashvani Patna', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio062/hlspbaudio062_Auto.m3u8' },
+            '349': { name: 'Akashvani Cuttack', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio063/hlspbaudio063_Auto.m3u8' },
+            '350': { name: 'Akashvani Bhubaneswar', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio064/hlspbaudio064_Auto.m3u8' },
+            '351': { name: 'Akashvani Ranchi', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio065/hlspbaudio065_Auto.m3u8' },
+            '352': { name: 'Akashvani Port Blair', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio066/hlspbaudio066_Auto.m3u8' },
+
+            // Additional Regional Services
+            '353': { name: 'Akashvani Assamese', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio067/hlspbaudio067_Auto.m3u8' },
+            '354': { name: 'Akashvani Odia', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio068/hlspbaudio068_Auto.m3u8' },
+            '355': { name: 'Akashvani Telugu', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio069/hlspbaudio069_Auto.m3u8' },
+            '356': { name: 'Akashvani Kannada', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio070/hlspbaudio070_Auto.m3u8' },
+            '357': { name: 'Akashvani Malayalam', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio071/hlspbaudio071_Auto.m3u8' },
+            '358': { name: 'Akashvani Tamil', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio072/hlspbaudio072_Auto.m3u8' },
+            '359': { name: 'Akashvani Marathi', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio073/hlspbaudio073_Auto.m3u8' },
+            '360': { name: 'Akashvani Dogri', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio074/hlspbaudio074_Auto.m3u8' },
+            '361': { name: 'Akashvani Kashmiri', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio075/hlspbaudio075_Auto.m3u8' },
+            '362': { name: 'Akashvani Ladakhi', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio076/hlspbaudio076_Auto.m3u8' },
+            '363': { name: 'Akashvani Urdu', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio077/hlspbaudio077_Auto.m3u8' },
+            '364': { name: 'Akashvani Sanskrit', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio078/hlspbaudio078_Auto.m3u8' },
+            '365': { name: 'Akashvani Sindhi', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio079/hlspbaudio079_Auto.m3u8' },
+            '366': { name: 'Akashvani Nepali', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio080/hlspbaudio080_Auto.m3u8' },
+            '367': { name: 'Akashvani Konkani', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio081/hlspbaudio081_Auto.m3u8' },
+            '368': { name: 'Akashvani Maithili', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio082/hlspbaudio082_Auto.m3u8' },
+            '369': { name: 'Akashvani Santhali', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio083/hlspbaudio083_Auto.m3u8' },
+            '370': { name: 'Akashvani Bodo', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio084/hlspbaudio084_Auto.m3u8' },
+
+            // Additional Local Relay Stations
+            '371': { name: 'Akashvani Udaipur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio085/hlspbaudio085_Auto.m3u8' },
+            '372': { name: 'Akashvani Kota', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio086/hlspbaudio086_Auto.m3u8' },
+            '373': { name: 'Akashvani Bikaner', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio087/hlspbaudio087_Auto.m3u8' },
+            '374': { name: 'Akashvani Surat', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio088/hlspbaudio088_Auto.m3u8' },
+            '375': { name: 'Akashvani Bhuj', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio089/hlspbaudio089_Auto.m3u8' },
+            '376': { name: 'Akashvani Kolhapur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio090/hlspbaudio090_Auto.m3u8' },
+            '377': { name: 'Akashvani Solapur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio091/hlspbaudio091_Auto.m3u8' },
+            '378': { name: 'Akashvani Sangli', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio092/hlspbaudio092_Auto.m3u8' },
+            '379': { name: 'Akashvani Jalgaon', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio093/hlspbaudio093_Auto.m3u8' },
+            '380': { name: 'Akashvani Nanded', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio094/hlspbaudio094_Auto.m3u8' },
+            '381': { name: 'Akashvani Akola', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio095/hlspbaudio095_Auto.m3u8' },
+            '382': { name: 'Akashvani Parbhani', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio096/hlspbaudio096_Auto.m3u8' },
+            '383': { name: 'Akashvani Ratnagiri', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio097/hlspbaudio097_Auto.m3u8' },
+            '384': { name: 'Akashvani Jabalpur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio098/hlspbaudio098_Auto.m3u8' },
+            '385': { name: 'Akashvani Gwalior', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio099/hlspbaudio099_Auto.m3u8' },
+            '386': { name: 'Akashvani Rewa', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio100/hlspbaudio100_Auto.m3u8' },
+            '387': { name: 'Akashvani Chhatarpur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio101/hlspbaudio101_Auto.m3u8' },
+            '388': { name: 'Akashvani Jagdalpur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio102/hlspbaudio102_Auto.m3u8' },
+            '389': { name: 'Akashvani Ambikapur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio103/hlspbaudio103_Auto.m3u8' },
+            '390': { name: 'Akashvani Bhagalpur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio104/hlspbaudio104_Auto.m3u8' },
+            '391': { name: 'Akashvani Darbhanga', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio105/hlspbaudio105_Auto.m3u8' },
+            '392': { name: 'Akashvani Sambalpur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio106/hlspbaudio106_Auto.m3u8' },
+            '393': { name: 'Akashvani Jeypore', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio107/hlspbaudio107_Auto.m3u8' },
+            '394': { name: 'Akashvani Dharwad', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio108/hlspbaudio108_Auto.m3u8' },
+            '395': { name: 'Akashvani Gulbarga', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio109/hlspbaudio109_Auto.m3u8' },
+            '396': { name: 'Akashvani Mangaluru', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio110/hlspbaudio110_Auto.m3u8' },
+            '397': { name: 'Akashvani Bhadravathi', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio111/hlspbaudio111_Auto.m3u8' },
+            '398': { name: 'Akashvani Tirupati', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio112/hlspbaudio112_Auto.m3u8' },
+            '399': { name: 'Akashvani Kadapa', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio113/hlspbaudio113_Auto.m3u8' },
+            '400': { name: 'Akashvani Anantapur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio114/hlspbaudio114_Auto.m3u8' },
+            '401': { name: 'Akashvani Warangal', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio115/hlspbaudio115_Auto.m3u8' },
+            '402': { name: 'Akashvani Nizamabad', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio116/hlspbaudio116_Auto.m3u8' },
+            '403': { name: 'Akashvani Tirunelveli', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio117/hlspbaudio117_Auto.m3u8' },
+            '404': { name: 'Akashvani Nagercoil', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio118/hlspbaudio118_Auto.m3u8' },
+            '405': { name: 'Akashvani Tuticorin', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio119/hlspbaudio119_Auto.m3u8' },
+            '406': { name: 'Akashvani Ooty', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio120/hlspbaudio120_Auto.m3u8' },
+            '407': { name: 'Akashvani Kannur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio121/hlspbaudio121_Auto.m3u8' },
+
+            // Additional North East Stations
+            '408': { name: 'Akashvani Dibrugarh', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio122/hlspbaudio122_Auto.m3u8' },
+            '409': { name: 'Akashvani Silchar', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio123/hlspbaudio123_Auto.m3u8' },
+            '410': { name: 'Akashvani Jorhat', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio124/hlspbaudio124_Auto.m3u8' },
+            '411': { name: 'Akashvani Nagaon', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio125/hlspbaudio125_Auto.m3u8' },
+            '412': { name: 'Akashvani Tezpur', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio126/hlspbaudio126_Auto.m3u8' },
+            '413': { name: 'Akashvani Haflong', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio127/hlspbaudio127_Auto.m3u8' },
+            '414': { name: 'Akashvani Tura', image: defaultImg, live_url: 'https://airhlspush.pc.cdn.bitgravity.com/httppush/hlspbaudio128/hlspbaudio128_Auto.m3u8' }
+        };
+
+        const audio = document.getElementById('audioPlayer');
+        const playBtn = document.getElementById('playBtn');
+        let currentKey = null;
+        let hls = null;
+
+        function renderChannels(channelData) {
+            const grid = document.getElementById('channelGrid');
+            grid.innerHTML = '';
+
+            const keys = Object.keys(channelData);
+            document.getElementById('channelCount').innerText = `Showing ${keys.length} Live Channels`;
+
+            keys.forEach(key => {
+                const item = channelData[key];
+                const card = document.createElement('div');
+                card.className = `channel-card ${currentKey === key ? 'active' : ''}`;
+                card.onclick = () => loadChannel(key);
+
+                card.innerHTML = `
+                    <img src="${item.image}" alt="${item.name}" onerror="this.src='${defaultImg}'">
+                    <h3>${item.name}</h3>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function loadChannel(key) {
+            currentKey = key;
+            const channel = channels[key];
+
+            document.getElementById('currentTitle').innerText = channel.name;
+            document.getElementById('currentImg').src = channel.image || defaultImg;
+            document.getElementById('currentStatus').innerText = 'Connecting...';
+
+            if (Hls.isSupported()) {
+                if (hls) { hls.destroy(); }
+                hls = new Hls();
+                hls.loadSource(channel.live_url);
+                hls.attachMedia(audio);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    audio.play();
+                });
+            } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+                audio.src = channel.live_url;
+                audio.play();
+            }
+
+            renderChannels(channels);
+        }
+
+        function togglePlay() {
+            if (!audio.src && !hls) return;
+            if (audio.paused) { audio.play(); } else { audio.pause(); }
+        }
+
+        audio.onplay = () => {
+            playBtn.innerText = '⏸';
+            document.getElementById('currentStatus').innerText = 'Playing Live';
+        };
+
+        audio.onpause = () => {
+            playBtn.innerText = '▶';
+            document.getElementById('currentStatus').innerText = 'Paused';
+        };
+
+        function setVolume(val) { audio.volume = val; }
+
+        function filterChannels() {
+            const term = document.getElementById('searchBar').value.toLowerCase();
+            const filtered = {};
+
+            Object.keys(channels).forEach(key => {
+                if (channels[key].name.toLowerCase().includes(term)) {
+                    filtered[key] = channels[key];
+                }
+            });
+
+            renderChannels(filtered);
+        }
+
+        // Initial load
+        renderChannels(channels);
+    </script>
+</body>
+</html>
